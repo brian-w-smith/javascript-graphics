@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+
+<!-- SPACE INVADERS
+steps:
+- done - create the ship (a box) and get it moving
+- done - player shooting
+- done - create enemy, and get it moving
+- enemy shooting
+- done - enemy dying
+- player dying
+- player lose / win
+- destructible shield
+-->
+
+	<head>
+		<meta charset=utf-8>
+		<title>My first three.js app</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+			#info {
+	position: absolute;
+	top: 10px;
+	width: 100%;
+	text-align: center;
+	z-index: 100;
+	display:block;
+	color: white;
+	visibility: hidden;
+}
+		</style>
+	</head>
+	<body>
+
+
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/104/three.js"></script>
+		<script>
+
+    var isGameOver =false;
+		var scene = new THREE.Scene();
+		var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+
+		var renderer = new THREE.WebGLRenderer();
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		document.body.appendChild( renderer.domElement );
+
+		//var geometry = new THREE.WireframeGeometry( new THREE.BoxGeometry( 1, 1, 1 ));
+		var geometry = new THREE.BoxGeometry( 1, 1, 1 );
+		var material = new THREE.MeshBasicMaterial( { color: 0x00ff00, wireframe: true } );
+		var ship = new THREE.Mesh( geometry, material );
+		scene.add( ship );
+
+		let LEFT_WALL = -18;
+		let RIGHT_WALL = 18;
+		let TOP_WALL = 35;
+		let HIT_RANGE = 2;
+		let ENEMY_COUNT = 10;
+		let FRAMES_PER_MOVE = 20;
+		let ENEMY_MOVE_PIXELS = 1;
+
+		var enemies = createEnemies();
+
+    camera.position.y = 18;
+		camera.position.z = 25;
+
+		var xSpeed = 0.6;
+
+		var bulletsInFlight = [];
+
+		var frameCounter = 0;
+		var wallHitCounter =0;
+		var lastWallHitFrame = 0;
+		var enemySpeed = FRAMES_PER_MOVE;
+
+		var goLeft = true; // enemy direction
+
+		document.addEventListener("keydown", onDocumentKeyDown, false);
+		function onDocumentKeyDown(event) {
+		    var keyCode = event.key;
+		    if (keyCode == "a" && ship.position.x > LEFT_WALL  ) {
+		        ship.position.x -= xSpeed;
+		    } else if (keyCode == "d"  && ship.position.x < RIGHT_WALL ) {
+		        ship.position.x += xSpeed;
+		    } else if(keyCode == " "){
+					shoot();
+				}
+				renderer.render( scene, camera );
+		};
+
+		function shoot(){
+         var bullet = createBullet(ship.position);
+				 bulletsInFlight.push(bullet);
+		}
+
+    function createEnemies(){
+      var enemiesToReturn = [];
+			var geometry = new THREE.BoxGeometry( 1, 1, 1 );
+			var material = new THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } );
+			let startX = 3;
+			let startY = 25;
+			var x = startX;
+			var y = startY;
+
+			for(var i=0;i<ENEMY_COUNT;i++){
+				var cube1 = new THREE.Mesh( geometry, material );
+				var x = x+5;
+				if(x > RIGHT_WALL){
+					 x = startX;
+					 y = y + 3;
+				}
+				cube1.position.set( x, y, 0);
+				scene.add( cube1 );
+				enemiesToReturn.push(cube1);
+			}
+
+      return enemiesToReturn;
+		}
+		function destroyBullet(i){
+			bulletsInFlight[i].geometry.dispose();
+			bulletsInFlight[i].material.dispose();
+			scene.remove(bulletsInFlight[i]);
+			bulletsInFlight.splice(i,1);
+		}
+
+		function destroyEnemy(index){
+			enemies[index].geometry.dispose();
+			enemies[index].material.dispose();
+			scene.remove(enemies[index]);
+			enemies.splice(index,1);
+		}
+
+		function createBullet( startPosition){
+			var geometry = new THREE.BoxGeometry( 1, 1, 1 );
+			var material = new THREE.MeshBasicMaterial( { color: 0x00ff00, wireframe: true } );
+			var bullet = new THREE.Mesh( geometry, material );
+			bullet.position.x = startPosition.x;
+			bullet.position.y  = startPosition.y+1;
+			scene.add(bullet);
+			return bullet;
+		}
+
+		var animate = function () {
+			if(isGameOver){ return;}
+			requestAnimationFrame( animate );
+			var bulletXs = [];
+			var bulletYs = [];
+
+      for(var i = 0 ; i< bulletsInFlight.length ; i++ ){
+				bulletXs.push(bulletsInFlight[i].position.x);
+				bulletYs.push(bulletsInFlight[i].position.y);
+
+				  if(bulletsInFlight[i].position.y > TOP_WALL){
+						destroyBullet(i);
+						bulletXs.splice(i,1);
+						bulletYs.splice(i,1);
+					}else{
+				    bulletsInFlight[i].position.y += 1;
+					}
+			}
+
+      var hitWall = false;
+			var minX = 10000;
+			var maxX = -10000;
+
+			var enemiesToRemove = [];
+      //find min and max X coord
+			for(var i = 0 ; i < enemies.length ; i++ ){
+				  if(enemies[i].position.x < minX){
+						 minX = enemies[i].position.x;
+					}
+					if(enemies[i].position.x > maxX){
+						 maxX = enemies[i].position.x;
+					}
+
+					for(var j=0; j< bulletXs.length;j++){
+						 if(enemies[i].position.x > bulletXs[j]-HIT_RANGE && enemies[i].position.x < bulletXs[j]+HIT_RANGE
+							  && enemies[i].position.y > bulletYs[j]-HIT_RANGE && enemies[i].position.y < bulletYs[j]+HIT_RANGE
+						  ){
+                 enemiesToRemove.push(i);
+								 destroyBullet(j);
+								 bulletXs.splice(j,1);
+								 bulletYs.splice(j,1);
+						 }
+					}
+			}
+			//console.log('min X '+minX +  'max X '+maxX);
+			for(var i=0;i<enemiesToRemove.length;i++){
+				destroyEnemy(enemiesToRemove[i]);
+			}
+
+			if(minX < -15 ){
+				if((frameCounter - lastWallHitFrame) > 10){
+				   lastWallHitFrame = frameCounter;
+					 console.log('lastWallHitFrame '+lastWallHitFrame + ' minX '+minX + ' maxX '+maxX);
+				   hitWall =true;
+
+				   wallHitCounter++;
+
+			   	if(wallHitCounter%3==0){
+			   		enemySpeed = enemySpeed / 2;
+					}
+			  	goLeft = false;
+					console.log('now going '+ (goLeft ? 'left' : 'right') );
+			  }
+			}else if(maxX > RIGHT_WALL  ){
+				if((frameCounter - lastWallHitFrame) > 10){
+					 lastWallHitFrame = frameCounter;
+					 console.log('lastWallHitFrame '+lastWallHitFrame + ' minX '+minX + ' maxX '+maxX);
+					 hitWall =true;
+
+					 wallHitCounter++;
+
+					if(wallHitCounter%3==0){
+						enemySpeed = enemySpeed / 2;
+					}
+					goLeft = true;
+					console.log('now going '+ (goLeft ? 'left' : 'right') );
+				}
+			}
+			for(var i = 0 ; i < enemies.length ; i++ ){
+				 if( frameCounter % enemySpeed == 0 ){
+					enemies[i].position.x = goLeft ? enemies[i].position.x-ENEMY_MOVE_PIXELS : enemies[i].position.x+ENEMY_MOVE_PIXELS;
+				}
+
+				if(hitWall ){
+					console.log('hitwall #2 '+hitWall)
+					if(enemies[i].position.y < 4 ) {
+						isGameOver = true;
+						document.getElementById('info').style.visibility= 'visible';
+					}
+					enemies[i].position.y = enemies[i].position.y -1;
+				}
+			}
+
+			renderer.render( scene, camera );
+			frameCounter++;
+		};
+		animate();
+
+		</script>
+		<div id="info" >Game Over</div>
+	</body>
+</html>
