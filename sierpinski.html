@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+
+<!-- Sierpinski Curve
+http://graphics.cs.ucdavis.edu/~joy/ecs175/assignments/Assignment-1.pdf
+-->
+
+	<head>
+		<meta charset=utf-8>
+		<title>Sierpinski Curve</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+	</head>
+	<body>
+
+
+		<script src="js/three.js"></script>
+		<script>
+
+		const interval = 1;
+		var clock = new THREE.Clock();
+		var deltas = 0;
+		const MAX_N = 13;
+
+		var color = 0x000011;
+		var scene = new THREE.Scene();
+		var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 1, 1000 );
+		camera.position.set( 5, 5, 10 );
+		camera.lookAt( 05, 05, 0 );
+
+		var renderer = new THREE.WebGLRenderer();
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		document.body.appendChild( renderer.domElement );
+
+
+    //outer points of square are given
+		const given = [
+        new THREE.Vector3(0,0,0)
+				,new THREE.Vector3(0,10,0)
+        ,new THREE.Vector3(10,10,0)
+				,new THREE.Vector3(10,0,0)
+		];
+
+    renderAll(1);
+
+		var animate = function () {
+			requestAnimationFrame( animate );
+
+      deltas += clock.getDelta();
+			if(deltas > interval ){
+				deltas = 0;
+			  disposeNode(scene);
+				while(scene.children.length > 0 ){
+					 scene.remove(scene.children[0]);
+				}
+
+				var sinVal = Math.trunc(Math.abs(MAX_N*Math.sin(clock.elapsedTime/5)));
+				if(sinVal==0)sinVal=1;
+        renderAll(sinVal);
+			}
+
+			renderer.render( scene, camera );
+		};
+		animate();
+
+
+function renderAll(N){
+	var lineGeometry = new THREE.Geometry();
+	var triangleList = generate(given, N, lineGeometry);
+	lineGeometry.vertices.push(lineGeometry.vertices[0].clone());
+	for(var i=0;i<triangleList.length;i++){
+		var lineMat = new THREE.LineBasicMaterial( { color: randomColor() } );
+		var line = new THREE.Line( triangleList[i], lineMat  );
+		scene.add(line);
+	}
+	var curveMaterial = new THREE.LineBasicMaterial( { color: randomColor() } );
+	var curveLine = new THREE.Line( lineGeometry, curveMaterial  );
+	scene.add(curveLine);
+
+}
+
+
+function generate(points, N, lineGeometry){
+	if(N==0)return;
+  const triangleList= [];
+	  const selectedMid = Math.trunc(points.length / 2 );
+		var maxDistancePoints = maxDistance(points);
+		var tipPoint = findTip(points, maxDistancePoints);
+		var slicePoint = points.length == 3 ? determineSlicePoint(maxDistancePoints) : new THREE.Vector3(0,-1,0);
+
+    const leftPoints = [maxDistancePoints.left, tipPoint, slicePoint];
+		const rightPoints = [tipPoint, slicePoint, maxDistancePoints.right];
+		const triangle = points.length == 4 ? new THREE.Triangle(points[0],points[selectedMid-1],points[selectedMid] )
+													 :  new THREE.Triangle(leftPoints[0], leftPoints[1], leftPoints[2]);
+
+		const triangle2 = points.length == 4 ? new THREE.Triangle(points[0],points[selectedMid], points[selectedMid+1])
+												 : new THREE.Triangle(rightPoints[0], rightPoints[1], rightPoints[2] );
+
+    //recurse into closest triangle first
+		if(lineGeometry.vertices.length>0){
+		   const topPoint = lineGeometry.vertices[lineGeometry.vertices.length-1].clone();
+			 var tempPoint = new THREE.Vector3();
+			 triangle.getMidpoint(tempPoint);
+       var oneDist = distance(topPoint, tempPoint);
+			 triangle2.getMidpoint(tempPoint);
+		   var twoDist = distance(topPoint, tempPoint );
+			 //console.log('onedist '+oneDist+ ' twodist '+twoDist);
+
+			 splitTriangle(points, oneDist < twoDist ? triangle : triangle2, triangleList, N, lineGeometry);
+
+			splitTriangle(points, oneDist < twoDist ? triangle2 : triangle, triangleList, N, lineGeometry);
+
+		}else{  //vertices.length==0
+			 splitTriangle(points,triangle, triangleList, N, lineGeometry);
+
+	 		splitTriangle(points, triangle2, triangleList, N, lineGeometry);
+		 }
+
+	return triangleList;
+}
+
+function closestTriangle(midpoint, triangle1, triangle2){
+
+    return {closest: one, furthest: two }
+}
+
+
+function findTip(points, maxDistancePoints){
+
+    for(var i=0;i<points.length;i++){
+			if( !(points[i].x == maxDistancePoints.left.x
+			      && points[i].y == maxDistancePoints.left.y) &&
+				  !(points[i].x == maxDistancePoints.right.x
+				    && points[i].y == maxDistancePoints.right.y) ){
+				return points[i];
+			}
+		}
+}
+
+
+function splitTriangle(points, triangle, triangleList, N, lineGeometry ){
+   if(N==1){
+		 var target = new THREE.Vector3();
+		 triangle.getMidpoint(target);
+		 lineGeometry.vertices.push(target);
+	 }
+	 var geometry = new THREE.Geometry();
+
+	 geometry.vertices.push(triangle.a);
+	 geometry.vertices.push(triangle.b);
+	 geometry.vertices.push(triangle.c);
+	 geometry.vertices.push(triangle.a);
+
+	 triangleList.push(geometry);
+
+
+	 var sublist = generate([triangle.a, triangle.b, triangle.c], N-1, lineGeometry);
+	 if(sublist && sublist.length > 0 ){
+		 for(var i=0;i<sublist.length;i++){
+			 triangleList.push(sublist[i]);
+		 }
+	 }
+}
+
+function collectMidpoints(triangleList){
+		var geometry = new THREE.Geometry();
+	  for(var i=0;i<triangleList.length;i++){
+        var tri = new THREE.Triangle(triangleList[i].vertices[0],
+					                    triangleList[i].vertices[1],
+															triangleList[i].vertices[2]);
+        var target = new THREE.Vector3();
+				tri.getMidpoint(target);
+				geometry.vertices.push(target);
+        //console.log(target);
+		}
+		return geometry;
+}
+
+function maxDistance(points){
+	var max = 0;
+	var leftVec;
+	var rightVec;
+	for (var i=0;i<points.length;i++){
+      var dist = Math.sqrt(  Math.pow( (points[(i+1)%3].x - points[i].x),2)+ Math.pow( (points[(i+1)%3].y - points[i].y),2)   );
+			if(dist > max){
+				max = dist;
+				leftVec = points[i];
+				rightVec = points[(i+1)%3];
+			}
+	}
+	var obj = { left: leftVec, right: rightVec };
+	return obj;
+}
+
+function distance(one, two ){
+	 return  Math.sqrt(  Math.pow( (two.x - one.x),2)+ Math.pow( (two.y - one.y),2)   );
+}
+
+function determineSlicePoint(maxDistancePoints){ //return Vector3
+
+	 var added = maxDistancePoints.left.clone().add(maxDistancePoints.right).divideScalar(2);
+	 return added;
+}
+
+function disposeNode(parentObject) {
+    parentObject.traverse(function (node) {
+        if (node instanceof THREE.Mesh) {
+            if (node.geometry) {
+                node.geometry.dispose();
+            }
+            if (node.material) {
+                var materialArray;
+                if (node.material instanceof THREE.MeshFaceMaterial || node.material instanceof THREE.MultiMaterial) {
+                    materialArray = node.material.materials;
+                }
+                else if(node.material instanceof Array) {
+                    materialArray = node.material;
+                }
+                if(materialArray) {
+                    materialArray.forEach(function (mtrl, idx) {
+                        if (mtrl.map) mtrl.map.dispose();
+                        if (mtrl.lightMap) mtrl.lightMap.dispose();
+                        if (mtrl.bumpMap) mtrl.bumpMap.dispose();
+                        if (mtrl.normalMap) mtrl.normalMap.dispose();
+                        if (mtrl.specularMap) mtrl.specularMap.dispose();
+                        if (mtrl.envMap) mtrl.envMap.dispose();
+                        mtrl.dispose();
+                    });
+                }
+                else {
+                    if (node.material.map) node.material.map.dispose();
+                    if (node.material.lightMap) node.material.lightMap.dispose();
+                    if (node.material.bumpMap) node.material.bumpMap.dispose();
+                    if (node.material.normalMap) node.material.normalMap.dispose();
+                    if (node.material.specularMap) node.material.specularMap.dispose();
+                    if (node.material.envMap) node.material.envMap.dispose();
+                    node.material.dispose();
+                }
+            }
+        }
+    });
+}
+
+function incrementingColor(){
+  color +=  0x010101;
+	if(color.toString().endsWith("ff")){color += 0x335500;}
+	return color;
+}
+
+function randomColor(){
+	return parseInt(Math.floor(Math.random()*16777215).toString(16),16);
+}
+		</script>
+	</body>
+</html>
