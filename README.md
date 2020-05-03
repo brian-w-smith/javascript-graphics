@@ -4,4 +4,4 @@
 
 [Space Invaders](https://brian-w-smith.github.io/javascript-graphics/invaders.html)
 
-[Fragment Shader](https://brian-w-smith.github.io/javascript-graphics/fragment-shader.html)
+[Rotating Colors Shader](https://brian-w-smith.github.io/javascript-graphics/rotating-colors.html)
