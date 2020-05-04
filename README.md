@@ -1,4 +1,4 @@
-## Games and animations written using theejs 
+# Various Javascript games and animations 
 
 [Sierpinski Gasket](https://brian-w-smith.github.io/javascript-graphics/sierpinski.html)
 
